@@ -1,7 +1,13 @@
 <?php
-$conn = mysqli_connect("localhost", "root", "", "job_aggregator");
+$host = getenv("MYSQLHOST");
+$user = getenv("MYSQLUSER");
+$password = getenv("MYSQLPASSWORD");
+$database = getenv("MYSQLDATABASE");
+$port = getenv("MYSQLPORT");
 
-if (!$conn) {
-    die("Koneksi database gagal: " . mysqli_connect_error());
+$conn = new mysqli($host, $user, $password, $database, $port);
+
+if ($conn->connect_error) {
+    die("Koneksi database gagal: " . $conn->connect_error);
 }
 ?>
