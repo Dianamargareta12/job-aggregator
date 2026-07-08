@@ -1,16 +1,23 @@
 <?php
 include 'config.php';
 
-$keyword = isset($_GET['keyword']) ? $_GET['keyword'] : '';
-$pendidikan = isset($_GET['pendidikan']) ? $_GET['pendidikan'] : '';
-$lokasi = isset($_GET['lokasi']) ? $_GET['lokasi'] : '';
-$portal = isset($_GET['portal']) ? $_GET['portal'] : '';
+$keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
+$pendidikan = isset($_GET['pendidikan']) ? trim($_GET['pendidikan']) : '';
+$lokasi = isset($_GET['lokasi']) ? trim($_GET['lokasi']) : '';
+$portal = isset($_GET['portal']) ? trim($_GET['portal']) : '';
 
-$query = "SELECT * FROM jobs WHERE 1=1";
+$limit = 9;
+$page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
+if ($page < 1) {
+    $page = 1;
+}
+$offset = ($page - 1) * $limit;
+
+$where = " WHERE 1=1 ";
 
 if (!empty($keyword)) {
     $keyword_safe = mysqli_real_escape_string($conn, $keyword);
-    $query .= " AND (
+    $where .= " AND (
         judul_posisi LIKE '%$keyword_safe%' OR 
         nama_perusahaan LIKE '%$keyword_safe%' OR 
         lokasi LIKE '%$keyword_safe%' OR
@@ -20,22 +27,35 @@ if (!empty($keyword)) {
 
 if (!empty($pendidikan)) {
     $pendidikan_safe = mysqli_real_escape_string($conn, $pendidikan);
-    $query .= " AND pendidikan LIKE '%$pendidikan_safe%'";
+    $where .= " AND pendidikan LIKE '%$pendidikan_safe%'";
 }
 
 if (!empty($lokasi)) {
     $lokasi_safe = mysqli_real_escape_string($conn, $lokasi);
-    $query .= " AND lokasi LIKE '%$lokasi_safe%'";
+    $where .= " AND lokasi LIKE '%$lokasi_safe%'";
 }
 
 if (!empty($portal)) {
     $portal_safe = mysqli_real_escape_string($conn, $portal);
-    $query .= " AND portal_sumber LIKE '%$portal_safe%'";
+    $where .= " AND portal_sumber LIKE '%$portal_safe%'";
 }
 
-$query .= " ORDER BY judul_posisi ASC";
+$countQuery = "SELECT COUNT(*) AS total FROM jobs $where";
+$countResult = mysqli_query($conn, $countQuery);
+$countRow = mysqli_fetch_assoc($countResult);
+$total = $countRow['total'];
+$totalPages = ceil($total / $limit);
+
+$query = "SELECT * FROM jobs $where ORDER BY judul_posisi ASC LIMIT $limit OFFSET $offset";
 $result = mysqli_query($conn, $query);
-$total = mysqli_num_rows($result);
+
+$queryParams = $_GET;
+unset($queryParams['page']);
+
+function pageUrl($page, $queryParams) {
+    $queryParams['page'] = $page;
+    return '?' . http_build_query($queryParams);
+}
 ?>
 
 <!DOCTYPE html>
@@ -51,7 +71,7 @@ $total = mysqli_num_rows($result);
     <div class="logo"><span>Job</span> Aggregator</div>
     <nav>
         <a href="index.php" class="active">Beranda</a>
-        <a href="#">Lowongan</a>
+        <a href="index.php">Lowongan</a>
         <a href="#">Tentang</a>
         <a href="#">Kontak</a>
     </nav>
@@ -92,13 +112,7 @@ $total = mysqli_num_rows($result);
                     <label><input type="radio" name="portal" value="" <?= $portal == '' ? 'checked' : ''; ?>> Semua Portal</label>
                     <label><input type="radio" name="portal" value="Glints" <?= $portal == 'Glints' ? 'checked' : ''; ?>> Glints</label>
                     <label><input type="radio" name="portal" value="Jobstreet" <?= $portal == 'Jobstreet' ? 'checked' : ''; ?>> Jobstreet</label>
-                </div>
-
-                <div class="filter-group">
-                    <h4>Jenis Pekerjaan</h4>
-                    <label><input type="checkbox"> Full Time</label>
-                    <label><input type="checkbox"> Part Time</label>
-                    <label><input type="checkbox"> Internship</label>
+                    <label><input type="radio" name="portal" value="Loker.id" <?= $portal == 'Loker.id' ? 'checked' : ''; ?>> Loker.id</label>
                 </div>
 
                 <button class="btn-filter" type="submit">Terapkan Filter</button>
@@ -108,7 +122,10 @@ $total = mysqli_num_rows($result);
 
         <section class="jobs">
             <div class="result-header">
-                <p>Menampilkan <strong><?= $total; ?></strong> lowongan pekerjaan</p>
+                <p>
+                    Menampilkan <strong><?= mysqli_num_rows($result); ?></strong> dari 
+                    <strong><?= $total; ?></strong> lowongan pekerjaan
+                </p>
             </div>
 
             <?php if ($total > 0): ?>
@@ -139,6 +156,29 @@ $total = mysqli_num_rows($result);
                         </div>
                     </div>
                 <?php endwhile; ?>
+
+                <?php if ($totalPages > 1): ?>
+                    <div class="pagination">
+                        <?php if ($page > 1): ?>
+                            <a href="<?= pageUrl($page - 1, $queryParams); ?>">&laquo;</a>
+                        <?php endif; ?>
+
+                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                            <?php if ($i == 1 || $i == $totalPages || abs($i - $page) <= 2): ?>
+                                <a href="<?= pageUrl($i, $queryParams); ?>" class="<?= $i == $page ? 'active' : ''; ?>">
+                                    <?= $i; ?>
+                                </a>
+                            <?php elseif (abs($i - $page) == 3): ?>
+                                <span>...</span>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($page < $totalPages): ?>
+                            <a href="<?= pageUrl($page + 1, $queryParams); ?>">&raquo;</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+
             <?php else: ?>
                 <div class="empty">
                     <h3>Data lowongan tidak ditemukan</h3>
@@ -149,6 +189,12 @@ $total = mysqli_num_rows($result);
 
     </section>
 </main>
+
+<?php
+if (file_exists('templates/footer.php')) {
+    include 'templates/footer.php';
+}
+?>
 
 </body>
 </html>
